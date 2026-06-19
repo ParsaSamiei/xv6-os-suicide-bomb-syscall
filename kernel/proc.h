@@ -103,5 +103,10 @@ struct proc {
   struct context context;      // swtch() here to run process
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
+  
   char name[16];               // Process name (debugging)
+  
+  // --- suicide_bomb fields ---
+  int  bomb_armed;      // 1 if the bomb is active, 0 if disarmed
+  int  bomb_ticks;      // ticks remaining until detonation
 };

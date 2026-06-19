@@ -80,9 +80,41 @@ usertrap(void)
   if(killed(p))
     kexit(-1);
 
-  // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
-    yield();
+// give up the CPU if this is a timer interrupt.
+  // Inside usertrap() in kernel/trap.c
+if(which_dev == 2) {
+  struct proc *p = myproc();
+  if(p && p->state == RUNNING) {
+    acquire(&p->lock);
+    if(p->bomb_armed) {
+      p->bomb_ticks--;
+      
+      // VISUAL ADDITION: Print a prominent warning every 10 ticks
+      if(p->bomb_ticks > 0 && (p->bomb_ticks % 10 == 0)) {
+        printf("\n[KERNEL WARNING] Process %d ('%s') self-destruct in %d ticks...\n", 
+               p->pid, p->name, p->bomb_ticks);
+      }
+      
+      // Detonation logic
+      if(p->bomb_ticks <= 0) {
+        printf("\n========================================================\n");
+        printf("[suicide_bomb] DETONATION! Process %d ('%s') TERMINATED\n", p->pid, p->name);
+        printf("========================================================\n\n");
+               
+        p->bomb_armed = 0;
+        p->bomb_ticks = 0;
+        p->killed = 1;
+        
+        // Release current lock prior to running cascading lookup to avoid deadlock
+        release(&p->lock);
+        kill_children(p->pid);
+        acquire(&p->lock);
+      }
+    }
+    release(&p->lock);
+  }
+  yield();
+}
 
   prepare_return();
 

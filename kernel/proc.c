@@ -146,6 +146,9 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  // bomb initialization
+  p->bomb_armed = 0;   
+  p->bomb_ticks = 0;   
   return p;
 }
 
@@ -275,6 +278,9 @@ kfork(void)
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
+  // so the child process doesnt copy the bomb initialization
+  np->bomb_armed = 0;
+  np->bomb_ticks = 0;
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
@@ -300,6 +306,33 @@ kfork(void)
   release(&np->lock);
 
   return pid;
+}
+
+// Kills the children of the bombed process,
+// so that they don't keep running after the bombed process dies.
+void
+kill_children(int ppid)
+{
+  struct proc *p;
+
+  for(p = proc; p < &proc[NPROC]; p++){
+    
+    // Acquire the individual lock for this process before inspecting/modifying it
+    acquire(&p->lock);
+    
+    // Check if it has a parent and if that parent's PID matches
+    if(p->parent && p->parent->pid == ppid){
+      // Mark child for termination
+      p->killed = 1;
+      
+      // Wake it up if it is sleeping so the scheduler can reap it
+      if(p->state == SLEEPING)
+        p->state = RUNNABLE;
+    }
+    
+    // Release the lock for this process
+    release(&p->lock);
+  }
 }
 
 // Pass p's abandoned children to init.

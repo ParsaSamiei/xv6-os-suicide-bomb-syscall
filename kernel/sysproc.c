@@ -105,3 +105,28 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_suicide_bomb(void)
+{
+  int ticks_arg;
+  struct proc *p = myproc();
+
+  argint(0, &ticks_arg);
+
+  // Rule: negative values are an error; leave existing state untouched.
+  if(ticks_arg < 0)
+    return -1;
+
+  // Rule: ticks == 0 → disarm (safe exit from critical section).
+  if(ticks_arg == 0){
+    p->bomb_armed  = 0;
+    p->bomb_ticks  = 0;
+    return 0;
+  }
+
+  // Rule: ticks > 0 → arm the bomb.
+  p->bomb_ticks  = ticks_arg;
+  p->bomb_armed  = 1;
+  return 0;
+}
